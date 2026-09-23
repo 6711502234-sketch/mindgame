@@ -54,7 +54,7 @@ export const downloadStandaloneHtml = () => {
   <!-- Navigation Tabs: 4 requested tabs -->
   <div class="flex flex-wrap gap-2.5 mb-6">
     <button onclick="switchTab('homework')" id="tab-homework" class="px-4 py-2 bg-amber-300 sketch-btn rounded-xl font-black text-sm">📦 ส่งงาน</button>
-    <button onclick="switchTab('quiz')" id="tab-quiz" class="px-4 py-2 bg-white sketch-btn rounded-xl font-bold text-sm">🧪 แบบทดสอบ&สอบ</button>
+    <button onclick="switchTab('quiz')" id="tab-quiz" class="px-4 py-2 bg-white sketch-btn rounded-xl font-bold text-sm">🧪 แบบทดสอบ</button>
     <button onclick="switchTab('scorebook')" id="tab-scorebook" class="px-4 py-2 bg-white sketch-btn rounded-xl font-bold text-sm">📖 สมุดคะแนน</button>
     <button onclick="switchTab('reflection')" id="tab-reflection" class="px-4 py-2 bg-white sketch-btn rounded-xl font-bold text-sm">💬 มุมสะท้อน</button>
   </div>
@@ -127,7 +127,7 @@ export const downloadStandaloneHtml = () => {
             <p class="text-xs font-bold text-zinc-600">ข้อคิดเห็นของนักเรียนทุกคนช่วยพัฒนาคาบเรียนให้ดียิ่งขึ้น</p>
           </div>
           <div class="p-5 bg-amber-50 rounded-2xl border-2 border-zinc-900 space-y-3">
-            <label class="block text-base font-black">ข้อ 1: นักเรียนสนุกกับกิจกรรมที่ครูจัดมั้ย? (คลิกเลือกดาว 1-5)</label>
+            <label class="block text-base font-black">ข้อ 1: นักเรียนสนุกกับกิจกรรมที่ครูจัดไหม? (คลิกเลือกดาว 1-5)</label>
             <div class="flex items-center gap-2 py-2" id="star-group">
               \${[1,2,3,4,5].map(i => \`
                 <button onclick="setRating(\${i})" class="w-12 h-12 text-2xl sketch-btn rounded-xl \${i <= selectedRating ? 'bg-amber-400' : 'bg-zinc-100'}">⭐</button>
@@ -173,7 +173,7 @@ export const downloadStandaloneHtml = () => {
       if (tab === 'homework') renderHomework();
       else if (tab === 'reflection') renderReflection();
       else if (tab === 'quiz') {
-        document.getElementById('tab-content').innerHTML = '<div class="text-center py-10 space-y-3"><div class="text-4xl">🧪</div><h3 class="text-xl font-black">แบบทดสอบ & สอบ 2 บทเรียน ม.3</h3><p class="text-xs text-zinc-600 font-bold">1. เทคโนโลยียานยนต์ไฟฟ้า (EV)<br/>2. ฟิสิกส์พื้นฐาน (กลศาสตร์ ม.3)</p><p class="text-xs text-amber-800 font-bold bg-amber-100 p-2 rounded-xl inline-block">เปิดใช้งานข้อสอบครบ 20 ข้อในระบบหลัก</p></div>';
+        document.getElementById('tab-content').innerHTML = '<div class="text-center py-10 space-y-3"><div class="text-4xl">🧪</div><h3 class="text-xl font-black">แบบทดสอบ 2 บทเรียน</h3><p class="text-xs text-zinc-600 font-bold">1. เทคโนโลยียานยนต์ไฟฟ้า (EV)<br/>2. ฟิสิกส์พื้นฐาน (กลศาสตร์)</p><p class="text-xs text-amber-800 font-bold bg-amber-100 p-2 rounded-xl inline-block">เปิดใช้งานข้อสอบครบ 20 ข้อในระบบหลัก</p></div>';
       } else if (tab === 'scorebook') {
         document.getElementById('tab-content').innerHTML = '<div class="text-center py-10 space-y-3"><div class="text-4xl">📖</div><h3 class="text-xl font-black">สมุดคะแนน & สติกเกอร์เกียรติยศ 6 ชิ้น</h3><p class="text-xs text-zinc-600 font-bold">บันทึกผลสอบ คะแนนการบ้าน และดาวสะสมของนักเรียน ม.3</p></div>';
       }

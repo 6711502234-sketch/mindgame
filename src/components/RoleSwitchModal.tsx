@@ -22,14 +22,14 @@ export const RoleSwitchModal: React.FC<RoleSwitchModalProps> = ({
 
   const [role, setRole] = useState<UserRole>(currentUser.role);
   const [name, setName] = useState<string>(currentUser.name);
-  const [classRoom, setClassRoom] = useState<string>(currentUser.classRoom || 'ม.3/1');
+  const [classRoom, setClassRoom] = useState<string>(currentUser.classRoom || 'ห้อง 1');
   const [studentNo, setStudentNo] = useState<string>(currentUser.studentNo || '12');
   const [avatar, setAvatar] = useState<string>(currentUser.avatar || '🧑‍🎓');
 
   const handleSelectRole = (newRole: UserRole) => {
     setRole(newRole);
     if (newRole === 'teacher' && name === 'เด็กชายสมชาย สายวิทย์') {
-      setName('คุณครูนิภาภรณ์ ใจดี (ครูวิทย์ ม.3)');
+      setName('คุณครูนิภาภรณ์ ใจดี (ครูผู้สอน)');
       setAvatar('👩‍🏫');
     } else if (newRole === 'student' && name.includes('ครู')) {
       setName('เด็กชายสมชาย สายวิทย์');
@@ -41,7 +41,7 @@ export const RoleSwitchModal: React.FC<RoleSwitchModalProps> = ({
     onSaveProfile({
       ...currentUser,
       role,
-      name: name.trim() || (role === 'teacher' ? 'คุณครูผู้สอน ม.3' : 'นักเรียน ม.3'),
+      name: name.trim() || (role === 'teacher' ? 'คุณครูผู้สอน' : 'นักเรียน'),
       classRoom,
       studentNo,
       avatar,
@@ -150,18 +150,22 @@ export const RoleSwitchModal: React.FC<RoleSwitchModalProps> = ({
                 <label className="block text-xs font-bold text-zinc-800 mb-1">
                   ห้องเรียน
                 </label>
-                <select
+                <input
+                  type="text"
+                  list="roleswitch-classroom-list"
                   value={classRoom}
                   onChange={(e) => setClassRoom(e.target.value)}
+                  placeholder="เช่น ห้อง 1, ห้อง 2, ป.6/1"
                   className="w-full bg-white px-3 py-2 rounded-xl sketch-input text-sm font-semibold text-zinc-900"
-                >
-                  <option value="ม.3/1">ม.3/1 (ห้องวิทย์-คณิต)</option>
-                  <option value="ม.3/2">ม.3/2</option>
-                  <option value="ม.3/3">ม.3/3</option>
-                  <option value="ม.3/4">ม.3/4</option>
-                  <option value="ม.3/5">ม.3/5</option>
-                  <option value="ม.3/6">ม.3/6</option>
-                </select>
+                />
+                <datalist id="roleswitch-classroom-list">
+                  <option value="ห้อง 1" />
+                  <option value="ห้อง 2" />
+                  <option value="ห้อง 3" />
+                  <option value="ห้อง 4" />
+                  <option value="ห้อง 5" />
+                  <option value="ห้อง 6" />
+                </datalist>
               </div>
               <div>
                 <label className="block text-xs font-bold text-zinc-800 mb-1">

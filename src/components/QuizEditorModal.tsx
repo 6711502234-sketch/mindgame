@@ -14,13 +14,16 @@ import {
   Award,
   ChevronDown,
   ChevronUp,
-  Wand2
+  Wand2,
+  Image as ImageIcon,
+  Upload
 } from 'lucide-react';
 
 interface QuizEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (lesson: QuizLesson) => void;
+  onDelete?: (lessonId: string) => void;
   initialQuiz?: QuizLesson | null;
   authorName?: string;
 }
@@ -86,6 +89,7 @@ export const QuizEditorModal: React.FC<QuizEditorModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  onDelete,
   initialQuiz,
   authorName = 'ครูผู้สอน'
 }) => {
@@ -245,6 +249,24 @@ export const QuizEditorModal: React.FC<QuizEditorModalProps> = ({
     });
   };
 
+  const handleUpdateQuestionImage = (idx: number, imageUrl: string) => {
+    setQuestions((prev) => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], imageUrl: imageUrl || undefined };
+      return copy;
+    });
+  };
+
+  const handleUploadQuestionImage = (idx: number, file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        handleUpdateQuestionImage(idx, reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Form Submit
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -305,7 +327,7 @@ export const QuizEditorModal: React.FC<QuizEditorModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg md:text-xl font-black text-zinc-900">
-                  {initialQuiz ? '✏️ แก้ไขชุดแบบทดสอบ' : '➕ สร้างแบบทดสอบ & โพสต์ข้อสอบใหม่'}
+                  {initialQuiz ? '✏️ แก้ไขชุดแบบทดสอบ' : '➕ สร้างแบบทดสอบใหม่'}
                 </h3>
                 <span className="bg-purple-200 text-purple-950 font-black text-[10px] px-2 py-0.5 rounded-full border border-zinc-900">
                   คุณครูผู้สอน
@@ -351,7 +373,7 @@ export const QuizEditorModal: React.FC<QuizEditorModalProps> = ({
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="เช่น บทที่ 3: ระบบพลังงานทดแทนและสิ่งแวดล้อม (ม.3)"
+                  placeholder="เช่น บทที่ 3: ระบบพลังงานทดแทนและสิ่งแวดล้อม"
                   className="w-full px-3 py-2 bg-zinc-50 rounded-xl border-2 border-zinc-900 text-xs md:text-sm font-bold focus:bg-white"
                 />
               </div>
@@ -375,16 +397,21 @@ export const QuizEditorModal: React.FC<QuizEditorModalProps> = ({
               {/* Target Class */}
               <div className="space-y-1">
                 <label className="text-xs font-black text-zinc-800">ห้องเรียนเป้าหมาย</label>
-                <select
+                <input
+                  type="text"
+                  list="quiz-targetclass-list"
                   value={targetClass}
                   onChange={(e) => setTargetClass(e.target.value)}
-                  className="w-full px-3 py-2 bg-zinc-50 rounded-xl border-2 border-zinc-900 text-xs font-bold"
-                >
-                  <option value="ทุกห้อง">🏫 ทุกห้อง (ม.3)</option>
-                  <option value="ม.3/1">🏫 ม.3/1</option>
-                  <option value="ม.3/2">🏫 ม.3/2</option>
-                  <option value="ม.3/3">🏫 ม.3/3</option>
-                </select>
+                  placeholder="เช่น ทุกห้อง, ห้อง 1, ห้อง 2"
+                  className="w-full px-3 py-2 bg-zinc-50 rounded-xl border-2 border-zinc-900 text-xs md:text-sm font-bold focus:bg-white"
+                />
+                <datalist id="quiz-targetclass-list">
+                  <option value="ทุกห้อง" />
+                  <option value="ห้อง 1" />
+                  <option value="ห้อง 2" />
+                  <option value="ห้อง 3" />
+                  <option value="ห้อง 4" />
+                </datalist>
               </div>
 
               {/* Subtitle / Instructions */}
@@ -543,6 +570,67 @@ export const QuizEditorModal: React.FC<QuizEditorModalProps> = ({
                     />
                   </div>
 
+                  {/* Question Image Attachment (ครูสามารถเพิ่มรูปภาพในแบบทดสอบได้) */}
+                  <div className="space-y-1.5 bg-white p-2.5 rounded-xl border border-zinc-300">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-zinc-700 flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-sky-600" />
+                        <span>รูปภาพประกอบคำถาม (JPG / PNG):</span>
+                      </label>
+                      {q.imageUrl && (
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateQuestionImage(qIdx, '')}
+                          className="text-[11px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer"
+                        >
+                          <X className="w-3 h-3" /> ลบรูปภาพ
+                        </button>
+                      )}
+                    </div>
+
+                    {q.imageUrl ? (
+                      <div className="relative group max-w-sm rounded-lg overflow-hidden border border-zinc-300 bg-zinc-50 p-1.5 mx-auto">
+                        <img
+                          src={q.imageUrl}
+                          alt={`ภาพประกอบข้อ ${qIdx + 1}`}
+                          className="max-h-48 w-auto rounded mx-auto object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 rounded-lg border border-sky-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>เลือกรูปภาพ (JPG, PNG)...</span>
+                          <input
+                            type="file"
+                            accept="image/png, image/jpeg, image/jpg, image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                handleUploadQuestionImage(qIdx, e.target.files[0]);
+                              }
+                            }}
+                          />
+                        </label>
+                        <span className="text-[11px] text-zinc-400">หรือระบุ URL รูป:</span>
+                        <input
+                          type="url"
+                          placeholder="https://example.com/image.png"
+                          className="flex-1 min-w-[140px] px-2.5 py-1 text-xs bg-zinc-50 rounded-lg border border-zinc-300 font-normal"
+                          onBlur={(e) => {
+                            if (e.target.value.trim()) handleUpdateQuestionImage(qIdx, e.target.value.trim());
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleUpdateQuestionImage(qIdx, (e.target as HTMLInputElement).value.trim());
+                            }
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
                   {/* 4 Choices */}
                   <div className="space-y-2">
                     <label className="text-xs font-black text-zinc-800 flex items-center justify-between">
@@ -639,6 +727,20 @@ export const QuizEditorModal: React.FC<QuizEditorModalProps> = ({
 
           {/* Footer Submit Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-3 border-t-2 border-zinc-900">
+            {initialQuiz && onDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDelete(initialQuiz.id);
+                }}
+                className="mr-auto w-full sm:w-auto px-4 py-2.5 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-xs rounded-xl border border-rose-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-[1px_1px_0px_#000]"
+              >
+                <Trash2 className="w-4 h-4 text-rose-600" />
+                <span>ลบชุดข้อสอบนี้</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onClose}

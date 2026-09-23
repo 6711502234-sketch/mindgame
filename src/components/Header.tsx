@@ -1,18 +1,25 @@
 import React from 'react';
 import { UserProfile, UserRole } from '../types';
 import { AvatarDisplay } from './DoodleAvatars';
-import { Sparkles, UserCheck, GraduationCap, School, Star, Repeat, LogOut, Package, Box } from 'lucide-react';
+import { GoogleIcon } from './GoogleLoginModal';
+import { GoogleSheetsIcon } from './GoogleSheetsModal';
+import { getGoogleSheetsConfig } from '../services/googleSheetsService';
+import { Sparkles, UserCheck, GraduationCap, School, Star, Repeat, LogOut, Package, Box, Camera } from 'lucide-react';
 
 interface HeaderProps {
   user: UserProfile;
   onLogout: () => void;
   onQuickToggleRole?: () => void;
+  onOpenGoogleSheets?: () => void;
+  onOpenProfileModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   user,
   onLogout,
   onQuickToggleRole,
+  onOpenGoogleSheets,
+  onOpenProfileModal,
 }) => {
   return (
     <header className="w-full bg-[#FEF08A] sketch-border rounded-[22px_14px_24px_16px] p-4 md:p-5 mb-6 shadow-[5px_5px_0px_#18181b] relative overflow-hidden">
@@ -33,13 +40,9 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-3xl md:text-4xl font-black text-zinc-900 tracking-tight flex items-center gap-2">
+              <h1 className="text-3xl md:text-4xl font-black text-zinc-900 tracking-tight">
                 <span>กล่องการบ้าน</span>
-                <span className="text-2xl">🎒</span>
               </h1>
-              <span className="bg-sky-200 text-sky-950 text-sm font-black px-3 py-0.5 rounded-full border-2 border-zinc-900 shadow-[1.5px_1.5px_0px_#18181b]">
-                ม.3
-              </span>
             </div>
             <p className="text-sm md:text-base font-bold text-zinc-700">
               ระบบส่งงานการบ้าน แบบทดสอบ สมุดคะแนน และมุมสะท้อน
@@ -65,18 +68,26 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* User Profile Badge */}
-          <div className="flex items-center gap-3 bg-white px-4 py-2 sketch-border rounded-[16px_20px_14px_18px] text-left">
-            <div className="shrink-0">
+          {/* User Profile Badge with Edit Avatar Action */}
+          <div className="flex items-center gap-2.5 bg-white pl-3 pr-3.5 py-2 sketch-border rounded-[16px_20px_14px_18px] text-left shadow-[2px_2px_0px_#18181b]">
+            <button
+              type="button"
+              onClick={onOpenProfileModal}
+              className="relative shrink-0 cursor-pointer group/avatar transition-transform hover:scale-105 active:scale-95"
+              title="คลิกเพื่อจัดการ Profile"
+            >
               <AvatarDisplay avatar={user.avatar} className="w-10 h-10" />
-            </div>
+              <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-300 rounded-full border border-zinc-900 flex items-center justify-center text-[9px] shadow-xs group-hover/avatar:bg-amber-400">
+                📷
+              </span>
+            </button>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm md:text-base font-black text-zinc-900 truncate max-w-[150px]">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-black text-zinc-900 truncate max-w-[130px]">
                   {user.name}
                 </span>
                 <span
-                  className={`text-xs font-black px-2 py-0.5 rounded-md border border-zinc-900 ${
+                  className={`text-[10px] font-black px-1.5 py-0.2 rounded border border-zinc-900 ${
                     user.role === 'teacher'
                       ? 'bg-rose-200 text-rose-900'
                       : 'bg-emerald-200 text-emerald-900'
@@ -84,9 +95,25 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   {user.role === 'teacher' ? 'คุณครู' : user.classRoom}
                 </span>
+
+                {onOpenProfileModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenProfileModal}
+                    className="text-[11px] font-black text-amber-700 hover:text-amber-950 underline decoration-amber-400 cursor-pointer ml-0.5 shrink-0"
+                    title="แก้ไขรูปภาพประจำตัว"
+                  >
+                    เปลี่ยนรูป
+                  </button>
+                )}
               </div>
               <div className="text-xs font-bold text-zinc-600 flex items-center gap-1.5 mt-0.5">
-                {user.role === 'teacher' ? (
+                {user.googleEmail ? (
+                  <span className="flex items-center gap-1 text-[11px] text-zinc-700 bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-300 max-w-[170px] truncate" title={`เข้าสู่ระบบด้วย Google: ${user.googleEmail}`}>
+                    <GoogleIcon className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{user.googleEmail}</span>
+                  </span>
+                ) : user.role === 'teacher' ? (
                   <>
                     <GraduationCap className="w-3.5 h-3.5 text-rose-600" />
                     <span>{user.teacherIdCode ? `รหัส: ${user.teacherIdCode}` : 'ครูผู้สอน'}</span>
@@ -100,6 +127,21 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Google Sheets Sync Hub Button (Teachers Only) */}
+          {user.role === 'teacher' && onOpenGoogleSheets && (
+            <button
+              onClick={onOpenGoogleSheets}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-950 text-sm font-black rounded-[14px_16px_12px_14px] sketch-btn cursor-pointer shadow-[2px_2px_0px_#000] relative"
+              title="เชื่อมต่อและซิงค์ข้อมูลกับ Google Sheets (เฉพาะคุณครู)"
+            >
+              <GoogleSheetsIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">Google Sheets</span>
+              {getGoogleSheetsConfig().webAppUrl ? (
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-zinc-900 absolute -top-1 -right-1 animate-pulse" title="เชื่อมต่อ Google Sheets เรียบร้อยแล้ว" />
+              ) : null}
+            </button>
+          )}
 
           {/* Quick Role Switcher if provided */}
           {onQuickToggleRole && (

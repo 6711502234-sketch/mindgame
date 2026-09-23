@@ -866,32 +866,64 @@ const AVATAR_MAP: Record<string, React.FC<DoodleAvatarProps>> = {
 
 interface AvatarDisplayProps {
   avatar?: string;
+  avatarId?: string;
   className?: string;
-  size?: number;
+  size?: number | 'sm' | 'md' | 'lg' | string;
   altName?: string;
 }
 
 export const AvatarDisplay: React.FC<AvatarDisplayProps> = ({
-  avatar = 'student-boy-glasses',
+  avatar,
+  avatarId,
   className = 'w-10 h-10',
   size,
   altName = 'Avatar'
 }) => {
+  const effectiveAvatar = avatar || avatarId || 'student-boy-glasses';
+  const numericSize =
+    typeof size === 'number'
+      ? size
+      : size === 'sm'
+      ? 32
+      : size === 'md'
+      ? 40
+      : size === 'lg'
+      ? 56
+      : undefined;
+
+  // Check if avatar is a custom image (Data URL, http/https, blob)
+  if (
+    effectiveAvatar &&
+    (effectiveAvatar.startsWith('data:image/') ||
+      effectiveAvatar.startsWith('http://') ||
+      effectiveAvatar.startsWith('https://') ||
+      effectiveAvatar.startsWith('blob:'))
+  ) {
+    return (
+      <img
+        src={effectiveAvatar}
+        alt={altName}
+        className={`object-cover rounded-full border-2 border-zinc-900 select-none shadow-[1.5px_1.5px_0px_#18181b] bg-amber-100 shrink-0 ${className}`}
+        style={numericSize ? { width: numericSize, height: numericSize } : undefined}
+      />
+    );
+  }
+
   // Check if there is an exact matching Doodle Component
-  const Component = AVATAR_MAP[avatar];
+  const Component = AVATAR_MAP[effectiveAvatar];
 
   if (Component) {
-    return <Component className={className} size={size} />;
+    return <Component className={className} size={numericSize} />;
   }
 
   // Fallback: If it's a standard text/emoji string, render it inside a cute doodle badge
   return (
     <div
       className={`inline-flex items-center justify-center bg-amber-200 border-2 border-zinc-900 rounded-full select-none shadow-[1.5px_1.5px_0px_#18181b] ${className}`}
-      style={size ? { width: size, height: size } : undefined}
+      style={numericSize ? { width: numericSize, height: numericSize } : undefined}
       title={altName}
     >
-      <span className="text-base leading-none">{avatar || '🧑‍🎓'}</span>
+      <span className="text-base leading-none">{effectiveAvatar || '🧑‍🎓'}</span>
     </div>
   );
 };

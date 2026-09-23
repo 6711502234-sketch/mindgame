@@ -10,6 +10,7 @@ import {
   StudentRecord,
   AwardedBadgeItem,
   AssignmentTask,
+  TeacherReflectionTopic,
 } from './types';
 import { initialQuizLessons } from './data/quizData';
 import {
@@ -19,6 +20,7 @@ import {
   sampleStudentExamScores,
   sampleStudentRecords,
   sampleInitialAssignmentTasks,
+  sampleReflectionTopics,
 } from './data/stickersData';
 import { triggerFestiveConfetti, triggerStarBurst } from './utils/confetti';
 import { downloadStandaloneHtml } from './utils/singleFileGenerator';
@@ -29,130 +31,112 @@ import { HomeworkView } from './components/HomeworkView';
 import { QuizView } from './components/QuizView';
 import { ScorebookView } from './components/ScorebookView';
 import { TeacherEvaluationView } from './components/TeacherEvaluationView';
+import { TeacherDashboardView } from './components/TeacherDashboardView';
 import { LoginView } from './components/LoginView';
 import { CelebrationModal } from './components/CelebrationModal';
+import { GoogleSheetsModal } from './components/GoogleSheetsModal';
+import { ProfilePictureModal } from './components/ProfilePictureModal';
+import {
+  getGoogleSheetsConfig,
+  saveGoogleSheetsConfig,
+  sendToGoogleSheets,
+  SyncPayload,
+} from './services/googleSheetsService';
+import {
+  saveUserProfileToFirestore,
+  saveTaskToFirestore,
+  saveHomeworkToFirestore,
+  saveEvaluationToFirestore,
+  subscribeToTasksFromFirestore,
+  subscribeToHomeworksFromFirestore,
+  subscribeToEvaluationsFromFirestore,
+} from './services/firebaseSync';
+import { safeGetItem, safeSetItem } from './utils/storage';
 
 import { Download } from 'lucide-react';
 
 export default function App() {
   // 0. Auth state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem('hw_box_logged_in') === 'true';
+    return safeGetItem<string>('hw_box_logged_in', 'false') === 'true';
   });
 
-  // 1. User Profile State (persisted to localStorage)
+  // 1. User Profile State (persisted to safe storage)
   const [user, setUser] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('hw_box_user');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return {
+    return safeGetItem<UserProfile>('hw_box_user', {
       id: 'std-01',
       name: 'เด็กชายสมชาย สายวิทย์',
       role: 'student',
-      classRoom: 'ม.3/1',
+      classRoom: 'ห้อง 1',
       studentNo: '12',
       avatar: '🧑‍🎓',
       totalStars: 100,
       unlockedStickers: ['first-step'],
       studentIdCode: 'STD-30112',
-    };
+    });
   });
 
   // 2. Assignment Tasks (Posted by Teacher)
   const [assignmentTasks, setAssignmentTasks] = useState<AssignmentTask[]>(() => {
-    const saved = localStorage.getItem('hw_box_assignment_tasks');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return sampleInitialAssignmentTasks;
+    const saved = safeGetItem<AssignmentTask[]>('hw_box_assignment_tasks_single', []);
+    if (Array.isArray(saved) && saved.length > 0) return saved;
+    return sampleInitialAssignmentTasks.slice(0, 1);
   });
 
   // 3. Homework List State
   const [homeworkList, setHomeworkList] = useState<Homework[]>(() => {
-    const saved = localStorage.getItem('hw_box_homeworks');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    const saved = safeGetItem<Homework[]>('hw_box_homeworks', []);
+    if (Array.isArray(saved) && saved.length > 0) return saved;
     return sampleInitialHomeworks;
   });
 
   // 4. Teacher Evaluations List
   const [evaluations, setEvaluations] = useState<TeacherEvaluation[]>(() => {
-    const saved = localStorage.getItem('hw_box_evaluations');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    const saved = safeGetItem<TeacherEvaluation[]>('hw_box_evaluations', []);
+    if (Array.isArray(saved) && saved.length > 0) return saved;
     return sampleInitialEvaluations;
   });
 
   // 5. Quiz Lessons State
   const [lessons, setLessons] = useState<QuizLesson[]>(() => {
-    const saved = localStorage.getItem('hw_box_lessons');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return initialQuizLessons;
+    const saved = safeGetItem<QuizLesson[]>('hw_box_lessons_single', []);
+    if (Array.isArray(saved) && saved.length > 0) return saved;
+    return initialQuizLessons.slice(0, 1);
   });
 
   // 6. Stickers State
   const [stickers, setStickers] = useState<StickerAchievement[]>(() => {
-    const saved = localStorage.getItem('hw_box_stickers');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    const saved = safeGetItem<StickerAchievement[]>('hw_box_stickers', []);
+    if (Array.isArray(saved) && saved.length > 0) return saved;
     return initialStickers;
   });
 
   // 7. Student Exam Scores (For Teacher & Classroom tracking)
   const [examScores, setExamScores] = useState<StudentExamScore[]>(() => {
-    const saved = localStorage.getItem('hw_box_exam_scores');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    const saved = safeGetItem<StudentExamScore[]>('hw_box_exam_scores', []);
+    if (Array.isArray(saved) && saved.length > 0) return saved;
     return sampleStudentExamScores;
   });
 
   // 8. Student Records (For Scorebook & Awarding stickers)
   const [studentRecords, setStudentRecords] = useState<StudentRecord[]>(() => {
-    const saved = localStorage.getItem('hw_box_student_records');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    const saved = safeGetItem<StudentRecord[]>('hw_box_student_records', []);
+    if (Array.isArray(saved) && saved.length > 0) return saved;
     return sampleStudentRecords;
   });
+
+  // 9. Teacher Reflection Topics
+  const [reflectionTopics, setReflectionTopics] = useState<TeacherReflectionTopic[]>(() => {
+    const saved = safeGetItem<TeacherReflectionTopic[]>('hw_box_reflection_topics', []);
+    if (Array.isArray(saved) && saved.length > 0) return saved;
+    return sampleReflectionTopics;
+  });
+
+  // Google Sheets Modal State
+  const [isGoogleSheetsModalOpen, setIsGoogleSheetsModalOpen] = useState<boolean>(false);
+
+  // Profile Picture & Info Edit Modal State
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
 
   // Active Tab (Strictly 4 requested tabs)
   const [activeTab, setActiveTab] = useState<ActiveTab>('homework');
@@ -170,42 +154,243 @@ export default function App() {
     message: '',
   });
 
-  // Save to localStorage on changes
+  // Save to safe storage on changes
   useEffect(() => {
-    localStorage.setItem('hw_box_user', JSON.stringify(user));
+    safeSetItem('hw_box_user', user);
   }, [user]);
 
   useEffect(() => {
-    localStorage.setItem('hw_box_logged_in', isAuthenticated ? 'true' : 'false');
+    safeSetItem('hw_box_logged_in', isAuthenticated ? 'true' : 'false');
   }, [isAuthenticated]);
 
   useEffect(() => {
-    localStorage.setItem('hw_box_assignment_tasks', JSON.stringify(assignmentTasks));
+    safeSetItem('hw_box_assignment_tasks_single', assignmentTasks);
+    safeSetItem('hw_box_assignment_tasks', assignmentTasks);
   }, [assignmentTasks]);
 
   useEffect(() => {
-    localStorage.setItem('hw_box_homeworks', JSON.stringify(homeworkList));
+    safeSetItem('hw_box_homeworks', homeworkList);
   }, [homeworkList]);
 
   useEffect(() => {
-    localStorage.setItem('hw_box_evaluations', JSON.stringify(evaluations));
+    safeSetItem('hw_box_evaluations', evaluations);
   }, [evaluations]);
 
   useEffect(() => {
-    localStorage.setItem('hw_box_lessons', JSON.stringify(lessons));
+    safeSetItem('hw_box_lessons_single', lessons);
+    safeSetItem('hw_box_lessons', lessons);
   }, [lessons]);
 
   useEffect(() => {
-    localStorage.setItem('hw_box_stickers', JSON.stringify(stickers));
+    safeSetItem('hw_box_stickers', stickers);
   }, [stickers]);
 
   useEffect(() => {
-    localStorage.setItem('hw_box_exam_scores', JSON.stringify(examScores));
+    safeSetItem('hw_box_exam_scores', examScores);
   }, [examScores]);
 
   useEffect(() => {
-    localStorage.setItem('hw_box_student_records', JSON.stringify(studentRecords));
+    safeSetItem('hw_box_student_records', studentRecords);
   }, [studentRecords]);
+
+  useEffect(() => {
+    safeSetItem('hw_box_reflection_topics', reflectionTopics);
+  }, [reflectionTopics]);
+
+  // Real-time Firestore synchronization with change-check to prevent re-render freezing
+  useEffect(() => {
+    const unsubTasks = subscribeToTasksFromFirestore((firestoreTasks) => {
+      if (firestoreTasks && firestoreTasks.length > 0) {
+        setAssignmentTasks((prev) => {
+          const map = new Map<string, AssignmentTask>();
+          firestoreTasks.forEach((t) => map.set(t.id, t));
+          prev.forEach((t) => {
+            if (!map.has(t.id)) map.set(t.id, t);
+          });
+          const merged = Array.from(map.values());
+          if (
+            merged.length === prev.length &&
+            merged.every(
+              (item, idx) =>
+                item.id === prev[idx]?.id &&
+                item.createdAt === prev[idx]?.createdAt &&
+                item.title === prev[idx]?.title
+            )
+          ) {
+            return prev;
+          }
+          return merged;
+        });
+      }
+    });
+
+    const unsubHws = subscribeToHomeworksFromFirestore((firestoreHws) => {
+      if (firestoreHws && firestoreHws.length > 0) {
+        setHomeworkList((prev) => {
+          const map = new Map<string, Homework>();
+          firestoreHws.forEach((h) => map.set(h.id, h));
+          prev.forEach((h) => {
+            if (!map.has(h.id)) map.set(h.id, h);
+          });
+          const merged = Array.from(map.values());
+          if (
+            merged.length === prev.length &&
+            merged.every(
+              (item, idx) =>
+                item.id === prev[idx]?.id &&
+                item.status === prev[idx]?.status &&
+                item.teacherScore === prev[idx]?.teacherScore
+            )
+          ) {
+            return prev;
+          }
+          return merged;
+        });
+      }
+    });
+
+    const unsubEvals = subscribeToEvaluationsFromFirestore((firestoreEvals) => {
+      if (firestoreEvals && firestoreEvals.length > 0) {
+        setEvaluations((prev) => {
+          const map = new Map<string, TeacherEvaluation>();
+          firestoreEvals.forEach((e) => map.set(e.id, e));
+          prev.forEach((e) => {
+            if (!map.has(e.id)) map.set(e.id, e);
+          });
+          const merged = Array.from(map.values());
+          if (
+            merged.length === prev.length &&
+            merged.every((item, idx) => item.id === prev[idx]?.id && item.teacherReply === prev[idx]?.teacherReply)
+          ) {
+            return prev;
+          }
+          return merged;
+        });
+      }
+    });
+
+    return () => {
+      if (typeof unsubTasks === 'function') unsubTasks();
+      if (typeof unsubHws === 'function') unsubHws();
+      if (typeof unsubEvals === 'function') unsubEvals();
+    };
+  }, []);
+
+  const handleCreateReflectionTopic = (topic: TeacherReflectionTopic) => {
+    setReflectionTopics((prev) => [topic, ...prev]);
+  };
+
+  const handleUpdateReflectionTopic = (updated: TeacherReflectionTopic) => {
+    setReflectionTopics((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  };
+
+  const handleDeleteReflectionTopic = (topicId: string) => {
+    setReflectionTopics((prev) => prev.filter((t) => t.id !== topicId));
+  };
+
+  // Auto-sync classroom dataset to Google Sheets when enabled
+  useEffect(() => {
+    const config = getGoogleSheetsConfig();
+    if (!config.webAppUrl || !config.autoSync) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const payload: SyncPayload = {
+          action: 'sync_all',
+          timestamp: new Date().toLocaleString('th-TH'),
+          studentRecords: studentRecords.map((s) => ({
+            studentId: s.id,
+            studentName: s.name,
+            studentClass: s.classRoom,
+            studentNo: s.studentNo,
+            totalStars: s.totalStars,
+            homeworkCompletedCount: s.homeworkCompletedCount,
+            totalHomeworkScore: s.totalHomeworkScore,
+            quizCompletedCount: s.quizCompletedCount,
+            totalQuizScore: s.totalQuizScore,
+          })),
+          homeworkSubmissions: homeworkList.map((h) => ({
+            homeworkId: h.id,
+            title: h.title,
+            subject: h.subject,
+            studentName: h.studentName,
+            studentClass: h.studentClass,
+            studentNo: h.studentNo,
+            status: h.status,
+            score: h.score,
+            maxScore: h.maxScore,
+            submittedAt: h.submittedAt,
+            feedback: h.feedback,
+          })),
+          examScores: examScores.map((e) => ({
+            id: e.id,
+            studentName: e.studentName,
+            studentClass: e.studentClass,
+            lessonTitle: e.lessonTitle,
+            score: e.score,
+            maxScore: e.maxScore,
+            submittedAt: e.submittedAt,
+          })),
+          evaluations: evaluations.map((ev) => ({
+            id: ev.id,
+            topicTitle: ev.topicTitle,
+            studentName: ev.studentName,
+            studentClass: ev.studentClass,
+            ratingStars: ev.ratingStars,
+            improvementText: ev.improvementText,
+            recommendationText: ev.recommendationText,
+            submittedAt: ev.submittedAt,
+          })),
+        };
+
+        const res = await sendToGoogleSheets(config.webAppUrl, payload);
+        if (res.success) {
+          saveGoogleSheetsConfig({
+            ...config,
+            lastSyncedAt: new Date().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }),
+            lastSyncStatus: 'success',
+          });
+        }
+      } catch (err) {
+        console.warn('Google Sheets auto-sync silent notice:', err);
+      }
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [studentRecords, homeworkList, examScores, evaluations]);
+
+  // Migration effect: Ensure cache is cleaned so only 1 task post and 1 quiz exist and class is clean
+  useEffect(() => {
+    if (localStorage.getItem('hw_box_universal_grades_v4') !== 'true') {
+      localStorage.setItem('hw_box_universal_grades_v4', 'true');
+      const singleTask = sampleInitialAssignmentTasks.slice(0, 1);
+      const singleLesson = initialQuizLessons.slice(0, 1);
+      setAssignmentTasks(singleTask);
+      setLessons(singleLesson);
+      localStorage.setItem('hw_box_assignment_tasks_single', JSON.stringify(singleTask));
+      localStorage.setItem('hw_box_lessons_single', JSON.stringify(singleLesson));
+      localStorage.setItem('hw_box_assignment_tasks', JSON.stringify(singleTask));
+      localStorage.setItem('hw_box_lessons', JSON.stringify(singleLesson));
+      localStorage.setItem('hw_box_exam_scores', JSON.stringify(sampleStudentExamScores));
+      localStorage.setItem('hw_box_student_records', JSON.stringify(sampleStudentRecords));
+      localStorage.setItem('hw_box_stickers', JSON.stringify(initialStickers));
+
+      // Clean existing user profile if it had old ม.3 classRoom
+      const savedUserStr = localStorage.getItem('hw_box_user');
+      if (savedUserStr) {
+        try {
+          const u = JSON.parse(savedUserStr);
+          if (u.classRoom && u.classRoom.includes('ม.3')) {
+            u.classRoom = u.classRoom.replace('ม.3/', 'ห้อง ').replace('ม.3', 'ห้อง 1');
+            setUser(u);
+            localStorage.setItem('hw_box_user', JSON.stringify(u));
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }, []);
 
   // Check & Unlock Stickers Helper
   const checkAndUnlockSticker = (stickerId: string) => {
@@ -266,6 +451,39 @@ export default function App() {
   const handleLogin = (newUser: UserProfile) => {
     setUser(newUser);
     setIsAuthenticated(true);
+    safeSetItem('hw_box_logged_in', 'true');
+    safeSetItem('hw_box_user', newUser);
+    saveUserProfileToFirestore(newUser);
+
+    if (newUser.role === 'student') {
+      setStudentRecords((prev) => {
+        const exists = prev.some(
+          (s) =>
+            s.id === newUser.id ||
+            (newUser.studentIdCode && s.studentIdCode === newUser.studentIdCode)
+        );
+        if (!exists) {
+          const newRecord: StudentRecord = {
+            id: newUser.id,
+            name: newUser.name,
+            studentIdCode: newUser.studentIdCode || 'STD-' + Math.floor(1000 + Math.random() * 9000),
+            classRoom: newUser.classRoom || 'ห้อง 1',
+            studentNo: newUser.studentNo || '01',
+            avatar: newUser.avatar || '🧑‍🎓',
+            totalStars: newUser.totalStars || 100,
+            unlockedStickers: newUser.unlockedStickers || ['first-step'],
+            awardedBadges: [],
+            homeworkCount: 0,
+            quizScores: {},
+          };
+          const updated = [...prev, newRecord];
+          safeSetItem('hw_box_student_records', updated);
+          return updated;
+        }
+        return prev;
+      });
+    }
+
     triggerStarBurst();
   };
 
@@ -298,6 +516,7 @@ export default function App() {
   // Assignment Tasks Management
   const handleCreateAssignmentTask = (newTask: AssignmentTask) => {
     setAssignmentTasks((prev) => [newTask, ...prev]);
+    saveTaskToFirestore(newTask);
     triggerFestiveConfetti();
   };
 
@@ -305,6 +524,7 @@ export default function App() {
     setAssignmentTasks((prev) =>
       prev.map((t) => (t.id === updatedTask.id ? updatedTask : t))
     );
+    saveTaskToFirestore(updatedTask);
   };
 
   const handleDeleteAssignmentTask = (taskId: string) => {
@@ -314,6 +534,7 @@ export default function App() {
   // Student Submit Homework
   const handleSubmitHomework = (newHw: Homework) => {
     setHomeworkList((prev) => [newHw, ...prev]);
+    saveHomeworkToFirestore(newHw);
     handleAwardStars(50, 'ส่งชิ้นงานการบ้านเรียบร้อย (+50 ดาว)');
 
     // Update student record homework count
@@ -325,6 +546,7 @@ export default function App() {
   // Teacher Review / Edit Homework
   const handleUpdateHomework = (updated: Homework) => {
     setHomeworkList((prev) => prev.map((h) => (h.id === updated.id ? updated : h)));
+    saveHomeworkToFirestore(updated);
   };
 
   // Delete Homework
@@ -335,6 +557,7 @@ export default function App() {
   // Student Submit Teacher Evaluation
   const handleSubmitEvaluation = (newEval: TeacherEvaluation) => {
     setEvaluations((prev) => [newEval, ...prev]);
+    saveEvaluationToFirestore(newEval);
     handleAwardStars(30, 'ส่งบันทึกมุมสะท้อนถึงคุณครู (+30 ดาว)');
   };
 
@@ -355,6 +578,10 @@ export default function App() {
           : e
       )
     );
+  };
+
+  const handleDeleteEvaluation = (evalId: string) => {
+    setEvaluations((prev) => prev.filter((e) => e.id !== evalId));
   };
 
   // Teacher award sticker to student
@@ -465,7 +692,7 @@ export default function App() {
       studentId: user.id,
       studentName: user.name,
       studentNo: user.studentNo || '12',
-      studentClass: user.classRoom || 'ม.3/1',
+      studentClass: user.classRoom || 'ห้อง 1',
       studentAvatar: user.avatar,
       lessonId,
       lessonTitle,
@@ -482,21 +709,85 @@ export default function App() {
     if (lessonId === 'ev-technology' && score >= 8) {
       checkAndUnlockSticker('ev-master');
     }
-    if (lessonId === 'mechanics-physics' && score >= 8) {
-      checkAndUnlockSticker('mechanics-guru');
+    if (score === 10) {
+      checkAndUnlockSticker('quiz-champion');
     }
+  };
+
+  // Student / Teacher Profile update handler (avatar, name, room, studentNo)
+  const handleUpdateUserProfile = (updatedUser: UserProfile) => {
+    setUser(updatedUser);
+    localStorage.setItem('hw_box_user', JSON.stringify(updatedUser));
+
+    // If it's a student, synchronize studentRecords so their avatar, name, room, and studentNo update everywhere!
+    if (updatedUser.role === 'student') {
+      setStudentRecords((prev) => {
+        const index = prev.findIndex(
+          (rec) =>
+            (updatedUser.studentIdCode && rec.studentIdCode === updatedUser.studentIdCode) ||
+            rec.id === updatedUser.id ||
+            rec.studentNo === updatedUser.studentNo
+        );
+        if (index >= 0) {
+          const updatedList = [...prev];
+          updatedList[index] = {
+            ...updatedList[index],
+            name: updatedUser.name,
+            avatar: updatedUser.avatar,
+            classRoom: updatedUser.classRoom,
+            studentNo: updatedUser.studentNo,
+          };
+          return updatedList;
+        }
+        return prev;
+      });
+    }
+  };
+
+  // Handle Student Registration
+  const handleRegisterStudent = (newRecord: StudentRecord, newUser: UserProfile) => {
+    setStudentRecords((prev) => {
+      const idx = prev.findIndex(
+        (s) =>
+          s.id === newRecord.id ||
+          (newRecord.studentIdCode && s.studentIdCode === newRecord.studentIdCode)
+      );
+      let updated: StudentRecord[];
+      if (idx >= 0) {
+        updated = [...prev];
+        updated[idx] = { ...updated[idx], ...newRecord };
+      } else {
+        updated = [newRecord, ...prev];
+      }
+      safeSetItem('hw_box_student_records', updated);
+      return updated;
+    });
+
+    handleLogin(newUser);
   };
 
   // Render Login Screen if not authenticated
   if (!isAuthenticated) {
-    return <LoginView onLogin={handleLogin} initialRole={user.role} />;
+    return (
+      <LoginView
+        onLogin={handleLogin}
+        initialRole={user.role}
+        studentRecords={studentRecords}
+        onRegisterStudent={handleRegisterStudent}
+      />
+    );
   }
 
   return (
     <div className="min-h-screen bg-[#FFFDF5] notebook-grid p-3 sm:p-5 md:p-8 flex flex-col justify-between">
       <div className="max-w-6xl w-full mx-auto">
         {/* Header */}
-        <Header user={user} onLogout={handleLogout} />
+        <Header
+          user={user}
+          onLogout={handleLogout}
+          onOpenGoogleSheets={user.role === 'teacher' ? () => setIsGoogleSheetsModalOpen(true) : undefined}
+          onOpenProfileModal={() => setIsProfileModalOpen(true)}
+        />
 
         {/* Navigation Tabs (4 Core Tabs) */}
         <NavigationTabs
@@ -546,6 +837,7 @@ export default function App() {
               studentRecords={studentRecords}
               onAwardStickerToStudent={handleAwardStickerToStudent}
               onUpdateStudentRecord={handleUpdateStudentRecord}
+              onOpenGoogleSheets={() => setIsGoogleSheetsModalOpen(true)}
             />
           )}
 
@@ -553,9 +845,29 @@ export default function App() {
             <TeacherEvaluationView
               currentUser={user}
               evaluations={evaluations}
+              topics={reflectionTopics}
               onSubmitEvaluation={handleSubmitEvaluation}
               onTeacherReply={handleTeacherReply}
+              onDeleteEvaluation={handleDeleteEvaluation}
               onAwardStars={handleAwardStars}
+              onCreateTopic={handleCreateReflectionTopic}
+              onUpdateTopic={handleUpdateReflectionTopic}
+              onDeleteTopic={handleDeleteReflectionTopic}
+              onOpenGoogleSheets={user.role === 'teacher' ? () => setIsGoogleSheetsModalOpen(true) : undefined}
+            />
+          )}
+
+          {activeTab === 'dashboard' && user.role === 'teacher' && (
+            <TeacherDashboardView
+              currentUser={user}
+              studentRecords={studentRecords}
+              homeworkList={homeworkList}
+              quizLessons={lessons}
+              examScores={examScores}
+              evaluations={evaluations}
+              onUpdateStudentRecord={handleUpdateStudentRecord}
+              onAwardStars={handleAwardStars}
+              onOpenGoogleSheets={() => setIsGoogleSheetsModalOpen(true)}
             />
           )}
         </main>
@@ -564,7 +876,7 @@ export default function App() {
       {/* Footer */}
       <footer className="max-w-6xl w-full mx-auto pt-6 border-t-3 border-zinc-900 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-bold text-zinc-600 pb-4">
         <div className="flex items-center gap-2">
-          <span>📦 กล่องการบ้าน (Homework Box ม.3)</span>
+          <span>📦 กล่องการบ้าน (Homework Box)</span>
           <span>• สไตล์ภาพวาดลายเส้นการ์ตูน</span>
         </div>
 
@@ -581,6 +893,16 @@ export default function App() {
         </div>
       </footer>
 
+      {/* Google Sheets Sync & Integration Modal */}
+      <GoogleSheetsModal
+        isOpen={isGoogleSheetsModalOpen}
+        onClose={() => setIsGoogleSheetsModalOpen(false)}
+        studentRecords={studentRecords}
+        homeworkList={homeworkList}
+        examScores={examScores}
+        evaluations={evaluations}
+      />
+
       {/* Celebration Modal */}
       <CelebrationModal
         isOpen={celebration.isOpen}
@@ -589,6 +911,14 @@ export default function App() {
         message={celebration.message}
         starAmount={celebration.starAmount}
         icon={celebration.icon}
+      />
+
+      {/* Profile Picture & Info Management Modal */}
+      <ProfilePictureModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        user={user}
+        onUpdateUser={handleUpdateUserProfile}
       />
     </div>
   );

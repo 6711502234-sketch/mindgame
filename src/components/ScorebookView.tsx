@@ -33,6 +33,8 @@ import {
   Edit3
 } from 'lucide-react';
 
+import { GoogleSheetsIcon } from './GoogleSheetsModal';
+
 interface ScorebookViewProps {
   currentUser: UserProfile;
   stickers: StickerAchievement[];
@@ -49,6 +51,7 @@ interface ScorebookViewProps {
     note: string
   ) => void;
   onUpdateStudentRecord?: (updatedStudent: StudentRecord) => void;
+  onOpenGoogleSheets?: () => void;
 }
 
 export const ScorebookView: React.FC<ScorebookViewProps> = ({
@@ -59,6 +62,7 @@ export const ScorebookView: React.FC<ScorebookViewProps> = ({
   studentRecords,
   onAwardStickerToStudent,
   onUpdateStudentRecord,
+  onOpenGoogleSheets,
 }) => {
   const [inspectSticker, setInspectSticker] = useState<StickerAchievement | null>(null);
 
@@ -106,10 +110,10 @@ export const ScorebookView: React.FC<ScorebookViewProps> = ({
       color: 'bg-emerald-100 border-emerald-500 text-emerald-950',
     },
     {
-      id: 'mechanics-guru',
-      name: 'Mechanics Guru',
-      thaiTitle: 'อัจฉริยะกลศาสตร์ ม.3',
-      icon: '⚙️',
+      id: 'quiz-champion',
+      name: 'Quiz Champion',
+      thaiTitle: 'ยอดนักคิดคะแนนเต็ม',
+      icon: '🎯',
       color: 'bg-sky-100 border-blue-500 text-sky-950',
     },
     {
@@ -122,7 +126,7 @@ export const ScorebookView: React.FC<ScorebookViewProps> = ({
     {
       id: 'homework-legend',
       name: 'Homework Legend',
-      thaiTitle: 'แชมป์กล่องการบ้าน ม.3',
+      thaiTitle: 'แชมป์กล่องการบ้าน',
       icon: '👑',
       color: 'bg-orange-100 border-orange-500 text-orange-950',
     },
@@ -188,10 +192,10 @@ export const ScorebookView: React.FC<ScorebookViewProps> = ({
   // Compute Rank based on stars for student
   const getRankInfo = (stars: number) => {
     if (stars >= 250) {
-      return { level: 5, title: '👑 แชมป์เปี้ยนกล่องการบ้าน ม.3 (Level MAX)', nextGoal: 300 };
+      return { level: 5, title: '👑 แชมป์เปี้ยนกล่องการบ้าน (Level MAX)', nextGoal: 300 };
     }
     if (stars >= 180) {
-      return { level: 4, title: '🚀 ยอดนักวิทยาศาสตร์ ม.3 (Level 4)', nextGoal: 250 };
+      return { level: 4, title: '🚀 ยอดนักเรียนดีเด่น (Level 4)', nextGoal: 250 };
     }
     if (stars >= 100) {
       return { level: 3, title: '⚙️ อัจฉริยะนักประดิษฐ์ (Level 3)', nextGoal: 180 };
@@ -199,19 +203,23 @@ export const ScorebookView: React.FC<ScorebookViewProps> = ({
     if (stars >= 50) {
       return { level: 2, title: '📖 นักสืบการบ้านไฟแรง (Level 2)', nextGoal: 100 };
     }
-    return { level: 1, title: '🌱 ก้าวแรกนักเรียน ม.3 (Level 1)', nextGoal: 50 };
+    return { level: 1, title: '🌱 ก้าวแรกนักเรียนคนเก่ง (Level 1)', nextGoal: 50 };
   };
 
   const rank = getRankInfo(currentUser.totalStars);
   const progressPercent = Math.min(100, Math.round((currentUser.totalStars / rank.nextGoal) * 100));
   const unlockedCount = stickers.filter((s) => s.isUnlocked).length;
 
+  const availableClasses = Array.from(
+    new Set(studentRecords.map((s) => s.classRoom).filter(Boolean))
+  ).sort();
+
   const filteredStudents = studentRecords.filter((std) => {
     const matchSearch =
       std.name.toLowerCase().includes(searchStudent.toLowerCase()) ||
       std.studentNo.includes(searchStudent) ||
       std.studentIdCode.toLowerCase().includes(searchStudent.toLowerCase());
-    const matchClass = classFilter === 'all' || std.classRoom.includes(classFilter);
+    const matchClass = classFilter === 'all' || std.classRoom === classFilter || std.classRoom.includes(classFilter);
     return matchSearch && matchClass;
   });
 
@@ -244,6 +252,17 @@ export const ScorebookView: React.FC<ScorebookViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              {onOpenGoogleSheets && (
+                <button
+                  type="button"
+                  onClick={onOpenGoogleSheets}
+                  className="px-4 py-3 bg-emerald-100 hover:bg-emerald-200 text-emerald-950 font-black text-sm rounded-xl sketch-btn flex items-center gap-2 cursor-pointer shadow-[3px_3px_0px_#18181b] shrink-0"
+                  title="ซิงค์และส่งออกสมุดคะแนนไปยัง Google Sheets"
+                >
+                  <GoogleSheetsIcon className="w-4 h-4" />
+                  <span>Google Sheets</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -325,35 +344,29 @@ export const ScorebookView: React.FC<ScorebookViewProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1 bg-zinc-100 p-1 rounded-xl border border-zinc-300 text-xs font-bold">
+              <div className="flex items-center gap-1 bg-zinc-100 p-1 rounded-xl border border-zinc-300 text-xs font-bold overflow-x-auto">
                 <span className="px-2 text-zinc-500">ห้อง:</span>
                 <button
                   type="button"
                   onClick={() => setClassFilter('all')}
-                  className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
+                  className={`px-3 py-1 rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
                     classFilter === 'all' ? 'bg-zinc-900 text-white font-black' : 'text-zinc-700 hover:bg-zinc-200'
                   }`}
                 >
                   ทุกห้อง
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setClassFilter('ม.3/1')}
-                  className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
-                    classFilter === 'ม.3/1' ? 'bg-purple-600 text-white font-black' : 'text-zinc-700 hover:bg-zinc-200'
-                  }`}
-                >
-                  ม.3/1
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setClassFilter('ม.3/2')}
-                  className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
-                    classFilter === 'ม.3/2' ? 'bg-purple-600 text-white font-black' : 'text-zinc-700 hover:bg-zinc-200'
-                  }`}
-                >
-                  ม.3/2
-                </button>
+                {availableClasses.map((cls) => (
+                  <button
+                    key={cls}
+                    type="button"
+                    onClick={() => setClassFilter(cls)}
+                    className={`px-3 py-1 rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+                      classFilter === cls ? 'bg-purple-600 text-white font-black' : 'text-zinc-700 hover:bg-zinc-200'
+                    }`}
+                  >
+                    {cls}
+                  </button>
+                ))}
               </div>
 
               {/* View mode toggle */}
@@ -695,7 +708,7 @@ export const ScorebookView: React.FC<ScorebookViewProps> = ({
                 ทำเนียบ 6 สติกเกอร์เกียรติยศ (Achievement Badges)
               </h3>
               <p className="text-xs font-semibold text-zinc-600">
-                สติกเกอร์เกียรติประวัติแห่งความพยายามของนักเรียนชั้น ม.3
+                สติกเกอร์เกียรติประวัติแห่งความพยายามของนักเรียนทุกคน
               </p>
             </div>
           </div>

@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { QuizLesson, UserProfile, StudentExamScore } from '../types';
 import { AvatarDisplay } from './DoodleAvatars';
 import { QuizEditorModal } from './QuizEditorModal';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { GoogleSheetsModal } from './GoogleSheetsModal';
+import { sendScoreToGoogleSheets } from '../utils/googleSheets';
 import { triggerFestiveConfetti, triggerStarBurst } from '../utils/confetti';
 import {
   CheckCircle2,
@@ -28,7 +31,8 @@ import {
   Layers,
   Calendar,
   Clock,
-  ListOrdered
+  ListOrdered,
+  FileSpreadsheet
 } from 'lucide-react';
 
 interface QuizViewProps {
@@ -68,6 +72,8 @@ export const QuizView: React.FC<QuizViewProps> = ({
   // Modal State for Create/Edit Quiz
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingQuiz, setEditingQuiz] = useState<QuizLesson | null>(null);
+  const [deletingQuiz, setDeletingQuiz] = useState<{ id: string; title: string } | null>(null);
+  const [isGoogleSheetsModalOpen, setIsGoogleSheetsModalOpen] = useState<boolean>(false);
 
   const isTeacher = currentUser.role === 'teacher';
   const activeLesson = lessons.find((l) => l.id === activeLessonId);
@@ -90,12 +96,15 @@ export const QuizView: React.FC<QuizViewProps> = ({
     setIsEditorOpen(true);
   };
 
-  const handleDeleteQuizWithConfirm = (lessonId: string, lessonTitle: string) => {
-    if (window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบชุดแบบทดสอบ "${lessonTitle}"?`)) {
-      if (onDeleteLesson) {
-        onDeleteLesson(lessonId);
-      }
+  const handleDeleteQuizWithConfirm = (lessonId: string, lessonTitle?: string) => {
+    setDeletingQuiz({ id: lessonId, title: lessonTitle || '' });
+  };
+
+  const handleConfirmDeleteQuiz = () => {
+    if (deletingQuiz && onDeleteLesson) {
+      onDeleteLesson(deletingQuiz.id);
     }
+    setDeletingQuiz(null);
   };
 
   const handleSaveQuiz = (lessonPayload: QuizLesson) => {
@@ -141,6 +150,34 @@ export const QuizView: React.FC<QuizViewProps> = ({
       `ทำแบบทดสอบ ${activeLesson.title} ได้ ${score}/${activeLesson.questions.length} (+${earnedStars} ⭐)`
     );
 
+    // Auto-sync score to Google Sheets if configured
+    try {
+      const sheetsUrl = localStorage.getItem('hw_box_sheets_webhook_url');
+      if (sheetsUrl && sheetsUrl.trim()) {
+        const submittedAt = new Date().toLocaleString('th-TH', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        });
+        sendScoreToGoogleSheets(
+          {
+            studentId: currentUser.id,
+            studentName: currentUser.name,
+            studentClass: currentUser.classRoom,
+            studentNo: currentUser.studentNo,
+            lessonId: activeLesson.id,
+            lessonTitle: activeLesson.title,
+            score,
+            maxScore: activeLesson.questions.length,
+            submittedAt,
+            earnedStars,
+          },
+          sheetsUrl
+        ).catch((err) => console.log('Sheets auto-sync notice:', err));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     if (score >= Math.ceil(activeLesson.questions.length * 0.7)) {
       triggerFestiveConfetti();
     } else {
@@ -149,9 +186,13 @@ export const QuizView: React.FC<QuizViewProps> = ({
   };
 
   // Filter exam scores for teacher dashboard
+  const availableClasses = Array.from(
+    new Set(examScores.map((s) => s.studentClass).filter(Boolean))
+  ).sort();
+
   const filteredExamScores = examScores.filter((record) => {
     const matchLesson = selectedLessonFilter === 'all' || record.lessonId === selectedLessonFilter;
-    const matchClass = selectedClassFilter === 'all' || record.studentClass.includes(selectedClassFilter);
+    const matchClass = selectedClassFilter === 'all' || record.studentClass === selectedClassFilter || record.studentClass.includes(selectedClassFilter);
     const matchSearch =
       record.studentName.toLowerCase().includes(searchStudent.toLowerCase()) ||
       record.studentNo.includes(searchStudent) ||
@@ -187,7 +228,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl md:text-2xl font-black text-zinc-900">
-                    2. แบบทดสอบ & สอบ (Teacher Exam Hub)
+                    2. แบบทดสอบ (Teacher Quiz Hub)
                   </h2>
                   <span className="bg-purple-300 text-purple-950 font-black text-xs px-2.5 py-0.5 rounded-full border border-zinc-900">
                     ครูผู้สอน
@@ -206,7 +247,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
                 className="px-4 py-2.5 bg-amber-300 hover:bg-amber-400 text-zinc-950 font-black text-xs md:text-sm rounded-xl sketch-btn flex items-center gap-1.5 shadow-[3px_3px_0px_#000] cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>สร้างแบบทดสอบใหม่ ✨</span>
+                <span>+ โพสต์แบบทดสอบใหม่</span>
               </button>
             </div>
           </div>
@@ -263,7 +304,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>📋 ชุดแบบทดสอบ & ข้อสอบทั้งหมด ({lessons.length})</span>
+            <span>📋 ชุดแบบทดสอบทั้งหมด ({lessons.length})</span>
           </button>
 
           <button
@@ -294,14 +335,16 @@ export const QuizView: React.FC<QuizViewProps> = ({
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={handleOpenCreateModal}
-                className="px-4 py-2 bg-emerald-300 hover:bg-emerald-400 text-zinc-950 text-xs font-black rounded-xl border-2 border-zinc-900 flex items-center gap-1.5 shadow-[2px_2px_0px_#000] cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ โพสต์แบบทดสอบใหม่</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsGoogleSheetsModalOpen(true)}
+                  className="px-3.5 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-950 text-xs font-black rounded-xl border-2 border-emerald-500 flex items-center gap-1.5 shadow-[2px_2px_0px_#000] cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+                  <span>📊 บันทึกคะแนนลง Google Sheets</span>
+                </button>
+              </div>
             </div>
 
             {/* Quiz Cards Grid */}
@@ -451,10 +494,28 @@ export const QuizView: React.FC<QuizViewProps> = ({
                   className="bg-zinc-50 px-2.5 py-1.5 rounded-lg border border-zinc-300 text-xs font-bold"
                 >
                   <option value="all">🏫 ทุกห้อง</option>
-                  <option value="ม.3/1">ม.3/1</option>
-                  <option value="ม.3/2">ม.3/2</option>
-                  <option value="ม.3/3">ม.3/3</option>
+                  {availableClasses.map((cls) => (
+                    <option key={cls} value={cls}>
+                      {cls}
+                    </option>
+                  ))}
+                  {availableClasses.length === 0 && (
+                    <>
+                      <option value="ห้อง 1">ห้อง 1</option>
+                      <option value="ห้อง 2">ห้อง 2</option>
+                    </>
+                  )}
                 </select>
+
+                <button
+                  type="button"
+                  onClick={() => setIsGoogleSheetsModalOpen(true)}
+                  className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs rounded-xl sketch-btn flex items-center gap-1.5 cursor-pointer shadow-[2px_2px_0px_#000]"
+                  title="เปิดหน้าต่างตั้งค่า Google Sheets และ Apps Script"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>บันทึกลง Google Sheets</span>
+                </button>
               </div>
             </div>
 
@@ -563,6 +624,12 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
                     <h4 className="text-sm font-black text-zinc-900">{q.question}</h4>
 
+                    {q.imageUrl && (
+                      <div className="my-2 max-h-48 max-w-sm rounded-xl border border-zinc-300 bg-white p-1 overflow-hidden">
+                        <img src={q.imageUrl} alt={`ภาพประกอบข้อ ${idx + 1}`} className="max-h-44 w-auto mx-auto object-contain rounded-lg" />
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
                       {q.options.map((opt, optIdx) => {
                         const isCorrect = optIdx === q.correctIndex;
@@ -609,6 +676,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
           isOpen={isEditorOpen}
           onClose={() => setIsEditorOpen(false)}
           onSave={handleSaveQuiz}
+          onDelete={handleDeleteQuizWithConfirm}
           initialQuiz={editingQuiz}
           authorName={currentUser.name}
         />
@@ -633,7 +701,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl md:text-2xl font-black text-zinc-900">
-                    2. แบบทดสอบ & สอบ (ม.3)
+                    2. แบบทดสอบ
                   </h2>
                   <span className="bg-amber-300 text-zinc-950 font-black text-xs px-2.5 py-0.5 rounded-full border border-zinc-900">
                     {lessons.length} ชุดบทเรียน
@@ -813,9 +881,20 @@ export const QuizView: React.FC<QuizViewProps> = ({
           </div>
 
           {/* Question Text */}
-          <h3 className="text-lg md:text-2xl font-black text-zinc-900 mb-6 leading-relaxed">
+          <h3 className="text-lg md:text-2xl font-black text-zinc-900 mb-4 leading-relaxed">
             {currentQ?.question}
           </h3>
+
+          {/* Question Image (if attached by teacher) */}
+          {currentQ?.imageUrl && (
+            <div className="mb-6 max-h-72 max-w-lg mx-auto rounded-2xl border-2 border-zinc-900 bg-white p-2 shadow-[3px_3px_0px_#18181b] overflow-hidden flex items-center justify-center">
+              <img
+                src={currentQ.imageUrl}
+                alt={`ภาพประกอบโจทย์ข้อที่ ${currentQuestionIdx + 1}`}
+                className="max-h-64 w-auto object-contain rounded-xl"
+              />
+            </div>
+          )}
 
           {/* Choices */}
           <div className="space-y-3.5 mb-8">
@@ -1037,6 +1116,12 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
                       <h5 className="text-sm md:text-base font-black text-zinc-900">{q.question}</h5>
 
+                      {q.imageUrl && (
+                        <div className="my-2 max-h-52 max-w-sm rounded-xl border border-zinc-300 bg-white p-1 overflow-hidden">
+                          <img src={q.imageUrl} alt={`ภาพประกอบข้อ ${idx + 1}`} className="max-h-48 w-auto mx-auto object-contain rounded-lg" />
+                        </div>
+                      )}
+
                       {/* Options breakdown */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                         {q.options.map((opt, optIdx) => {
@@ -1078,6 +1163,24 @@ export const QuizView: React.FC<QuizViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Confirm Delete Quiz Modal */}
+      <ConfirmDeleteModal
+        isOpen={deletingQuiz !== null}
+        title="ยืนยันการลบชุดแบบทดสอบ"
+        itemName={deletingQuiz?.title}
+        itemType="ชุดแบบทดสอบ"
+        description="เมื่อลบแล้ว ชุดคำถามและประวัติการสอบของชุดนี้จะถูกนำออกจากระบบทันที"
+        onConfirm={handleConfirmDeleteQuiz}
+        onClose={() => setDeletingQuiz(null)}
+      />
+
+      {/* Google Sheets Sync & Setup Modal */}
+      <GoogleSheetsModal
+        isOpen={isGoogleSheetsModalOpen}
+        onClose={() => setIsGoogleSheetsModalOpen(false)}
+        examScores={examScores}
+      />
     </div>
   );
 };
